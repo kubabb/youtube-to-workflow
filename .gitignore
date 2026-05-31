@@ -1,0 +1,52 @@
+# Secrets & credentials
+.env
+.env.*
+*.env
+secrets.json
+credentials.json
+*_key.txt
+*_secret.txt
+config.local.*
+
+# API keys — never commit
+# Context7 key lives in ~/.claude/settings.json (not in this repo)
+
+# Transcript temp files (kept locally for debugging, not shared)
+transcript_*.json
+extracted_*.json
+
+# Generated workflow outputs (root only — templates/workflow_template.md is tracked)
+/workflow_*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
