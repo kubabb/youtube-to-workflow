@@ -23,132 +23,42 @@ Before starting verify:
 - Video has captions (auto-generated OK)
 - Running locally — YouTube blocks AWS/GCP/Azure IPs
 
-## Execution Steps
+## Pipeline
 
-### Step 1: Extract Video ID
-
-```
-youtube.com/watch?v=VIDEO_ID  →  VIDEO_ID
-youtu.be/VIDEO_ID             →  VIDEO_ID
-bare VIDEO_ID                 →  use as-is
-```
-
-### Step 2: Fetch Transcript
-
-```bash
-python "C:\Users\kubar\.claude\skills\youtube-to-workflow\fetch_transcript.py" VIDEO_ID
-```
-
-Outputs: `transcript_VIDEO_ID.json` in current dir.
-
-Error handling:
-- `TranscriptsDisabled` → inform user, cannot proceed
-- `NoTranscriptFound` → add `--lang en` arg
-- HTTP 429 / IP block → advise local run or `--proxy http://...`
-
-### Step 3: Extract Structured Data
-
-Read `transcript_VIDEO_ID.json`, send `full_text` field to LLM with this extraction prompt:
-
-```
-SYSTEM: You are a workflow extraction specialist. Extract ALL procedural information from
-the transcript. Mark ambiguous items with [?]. Be exhaustive — miss nothing actionable.
-
-TRANSCRIPT:
-{full_text}
-
-OUTPUT JSON:
-{
-  "title": "inferred video title/topic",
-  "summary": "2-3 sentence summary of what the video teaches",
-  "prerequisites": ["tools, accounts, knowledge needed before starting"],
-  "tools_and_commands": ["exact CLI commands, tools, software mentioned"],
-  "steps": [
-    {
-      "number": 1,
-      "title": "short step title",
-      "description": "what to do in detail",
-      "command": "exact command or null",
-      "expected_output": "what success looks like or null"
-    }
-  ],
-  "warnings": ["gotchas, common mistakes, failure modes"],
-  "tips": ["shortcuts, optimizations, best practices"]
-}
-```
-
-### Step 4: Write Workflow File
-
-Write extracted data as `workflow_VIDEO_ID.md` in current working directory using template:
-
-```markdown
-# Workflow: {title}
-
-> **Source:** https://www.youtube.com/watch?v={video_id}
-> **Generated:** {date}
-> **Transcript:** {language} ({auto-generated or manual}) — {duration}
-{if auto_generated}> **Warning:** Auto-generated transcript — verify technical terms manually.{endif}
-
----
-
-## Summary
-
-{summary}
-
----
-
-## Prerequisites
-
-{for each}
-- [ ] {prerequisite}
-
----
-
-## Tools & Commands Referenced
-
-{for each}
-- `{tool_or_command}`
-
----
-
-## Step-by-Step Instructions
-
-{for each step}
-### Step {number}: {title}
-
-{description}
-
-{if command}
-```bash
-{command}
-```
-{endif}
-
-{if expected_output}**Expected output:** {expected_output}{endif}
-
----
-
-## Warnings & Gotchas
-
-{for each}
-> **Warning:** {warning}
-
-## Tips & Optimizations
-
-{for each}
-- {tip}
-
----
-*Auto-generated from YouTube transcript. Review all steps before running in production.*
-```
-
-### Step 5: Confirm Output
-
-Report to user:
-- File path: `{absolute_path}/workflow_VIDEO_ID.md`
-- Steps extracted: N
-- Warnings found: N
-- Any sections with insufficient data → user should supplement manually
+1. Extract video ID from the URL or bare ID provided by the user.
+2. Run: `python ~/.claude/skills/youtube-to-workflow/fetch_transcript.py VIDEO_ID`
+   - Output: `transcript_VIDEO_ID.json` in current directory
+   - If language warning appears: inform user, continue
+3. Read `transcript_VIDEO_ID.json`. Use the `full_text` field.
+   - If `full_text` exceeds 50,000 tokens: summarize it to ~8,000 tokens first, then proceed.
+4. Extract structured data from `full_text` using this schema:
+   ```json
+   {
+     "title": "descriptive workflow title (not the video title verbatim)",
+     "summary": "2-3 sentence summary of what this workflow accomplishes",
+     "prerequisites": ["list of things needed before starting"],
+     "tools_and_commands": ["every CLI tool, package, or command mentioned"],
+     "steps": [
+       {
+         "number": 1,
+         "title": "short imperative title",
+         "description": "clear explanation of what to do and why",
+         "command": "exact command or null",
+         "expected_output": "what user should see, or null"
+       }
+     ],
+     "warnings": ["gotchas, common mistakes, destructive operations"],
+     "tips": ["optimizations, shortcuts, alternatives"]
+   }
+   ```
+   Save this JSON to `extracted_VIDEO_ID.json` in current directory.
+5. Run: `python ~/.claude/skills/youtube-to-workflow/generate_workflow.py extracted_VIDEO_ID.json transcript_VIDEO_ID.json`
+   - Output: `workflow_VIDEO_ID.md` in current directory
+6. Report to user:
+   - Path to `workflow_VIDEO_ID.md`
+   - Number of steps extracted
+   - Number of warnings
+   - Any quality notes (auto-generated captions, non-English source, very short/long transcript)
 
 ## Error Table
 

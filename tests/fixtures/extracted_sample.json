@@ -1,0 +1,24 @@
+{
+  "title": "How to Rick Roll",
+  "summary": "Classic internet prank tutorial.",
+  "prerequisites": ["Internet connection"],
+  "tools_and_commands": ["youtube-dl"],
+  "steps": [
+    {
+      "number": 1,
+      "title": "Open YouTube",
+      "description": "Navigate to youtube.com",
+      "command": null,
+      "expected_output": null
+    },
+    {
+      "number": 2,
+      "title": "Search for the video",
+      "description": "Type in the search box.",
+      "command": "youtube-dl dQw4w9WgXcQ",
+      "expected_output": "[download] 100%"
+    }
+  ],
+  "warnings": ["Never gonna give you up"],
+  "tips": ["Use incognito mode"]
+}

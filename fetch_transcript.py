@@ -10,7 +10,7 @@ import json
 import re
 import os
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def extract_video_id(input_str: str) -> str:
@@ -47,7 +47,7 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
                 http_proxy=http_proxy, https_proxy=http_proxy
             )
         except ImportError:
-            print("WARNING: GenericProxyConfig not available in this version", file=sys.stderr)
+            print("WARNING: proxy support unavailable in this version of youtube-transcript-api. --proxy ignored.", file=sys.stderr)
 
     ytt_api = YouTubeTranscriptApi(**kwargs)
 
@@ -119,7 +119,7 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
     return {
         "video_id": video_id,
         "video_url": f"https://www.youtube.com/watch?v={video_id}",
-        "fetched_at": datetime.utcnow().isoformat() + "Z",
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
         "language": actual_language,
         "language_code": actual_language_code,
         "is_auto_generated": is_generated,
@@ -129,6 +129,20 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
         "full_text": full_text,
         "snippets": snippets,
     }
+
+
+def save_transcript(data: dict, output_dir: str = ".") -> str:
+    """Save transcript dict to JSON file. Creates output_dir if missing."""
+    os.makedirs(output_dir, exist_ok=True)
+    video_id = data["video_id"]
+    output_path = os.path.join(output_dir, f"transcript_{video_id}.json")
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"Error writing {output_path}: {e}", file=sys.stderr)
+        sys.exit(1)
+    return output_path
 
 
 def main():
@@ -149,9 +163,7 @@ def main():
 
     data = fetch_transcript(video_id, languages=args.lang, http_proxy=args.proxy)
 
-    output_path = os.path.join(args.output_dir, f"transcript_{video_id}.json")
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    output_path = save_transcript(data, args.output_dir)
 
     print(f"INFO: Written → {os.path.abspath(output_path)}", file=sys.stderr)
     print(f"INFO: {data['snippet_count']} snippets | {data['duration_human']} | lang: {data['language']} | auto: {data['is_auto_generated']}", file=sys.stderr)

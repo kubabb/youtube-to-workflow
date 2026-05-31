@@ -12,8 +12,8 @@ config.local.*
 # Context7 key lives in ~/.claude/settings.json (not in this repo)
 
 # Transcript temp files (kept locally for debugging, not shared)
-transcript_*.json
-extracted_*.json
+/transcript_*.json
+/extracted_*.json
 
 # Generated workflow outputs (root only — templates/workflow_template.md is tracked)
 /workflow_*.md
