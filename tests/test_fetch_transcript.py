@@ -9,9 +9,9 @@ def test_output_dir_created_if_missing(tmp_path):
     new_dir = tmp_path / "subdir" / "nested"
     assert not new_dir.exists()
     from fetch_transcript import save_transcript
-    data = {"video_id": "test", "full_text": "hello", "snippets": []}
+    data = {"video_id": "dQw4w9WgXcW", "full_text": "hello", "snippets": []}
     save_transcript(data, str(new_dir))
-    assert (new_dir / "transcript_test.json").exists()
+    assert (new_dir / "transcript_dQw4w9WgXcW.json").exists()
 
 
 def test_datetime_not_deprecated():
@@ -44,9 +44,9 @@ def test_save_transcript_returns_path(tmp_path):
 def test_save_transcript_creates_json(tmp_path):
     """save_transcript writes valid JSON."""
     from fetch_transcript import save_transcript
-    data = {"video_id": "xyz", "full_text": "hello world", "snippets": []}
+    data = {"video_id": "abc12345678", "full_text": "hello world", "snippets": []}
     path = save_transcript(data, str(tmp_path))
     with open(path) as f:
         loaded = json.load(f)
-    assert loaded["video_id"] == "xyz"
+    assert loaded["video_id"] == "abc12345678"
     assert loaded["full_text"] == "hello world"

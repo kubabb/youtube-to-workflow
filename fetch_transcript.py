@@ -11,18 +11,47 @@ import re
 import os
 import argparse
 from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
+
+_VIDEO_ID_RE = re.compile(r'^[A-Za-z0-9_-]{11}$')
+_YOUTUBE_NETLOC = frozenset({
+    'youtube.com', 'www.youtube.com', 'm.youtube.com',
+    'youtu.be', 'www.youtu.be',
+})
+_PROXY_RE = re.compile(r'^https?://\S+$')
 
 
 def extract_video_id(input_str: str) -> str:
-    patterns = [
-        r'(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]{11})',
-        r'^([A-Za-z0-9_-]{11})$',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, input_str.strip())
-        if match:
-            return match.group(1)
-    raise ValueError(f"Cannot extract video ID from: {input_str}")
+    input_str = input_str.strip()
+
+    # Bare 11-char video ID
+    if _VIDEO_ID_RE.match(input_str):
+        return input_str
+
+    # URL: parse and validate domain before extracting ID
+    try:
+        parsed = urlparse(input_str if '://' in input_str else 'https://' + input_str)
+        if parsed.scheme not in ('http', 'https'):
+            raise ValueError("URL must use http or https")
+        netloc = parsed.netloc.lower()
+        if netloc not in _YOUTUBE_NETLOC:
+            raise ValueError(f"Not a YouTube URL (domain: {netloc!r})")
+        if 'youtu.be' in netloc:
+            vid = parsed.path.lstrip('/').split('/')[0]
+        else:
+            vids = parse_qs(parsed.query).get('v', [])
+            if not vids:
+                raise ValueError("Missing ?v= parameter in YouTube URL")
+            vid = vids[0]
+        if not _VIDEO_ID_RE.match(vid):
+            raise ValueError(f"Invalid video ID format: {vid!r}")
+        return vid
+    except ValueError:
+        raise
+    except Exception:
+        pass
+
+    raise ValueError(f"Cannot extract video ID from: {input_str!r}")
 
 
 def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = None) -> dict:
@@ -41,6 +70,9 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
 
     kwargs = {}
     if http_proxy:
+        if not _PROXY_RE.match(http_proxy):
+            print("ERROR: Invalid proxy URL. Expected http://... or https://...", file=sys.stderr)
+            sys.exit(1)
         try:
             from youtube_transcript_api import GenericProxyConfig
             kwargs["proxies"] = GenericProxyConfig(
@@ -56,8 +88,8 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
     except TranscriptsDisabled:
         print(f"ERROR: Transcripts disabled for {video_id}", file=sys.stderr)
         sys.exit(2)
-    except Exception as e:
-        print(f"ERROR listing transcripts: {e}", file=sys.stderr)
+    except Exception:
+        print(f"ERROR: Failed to list transcripts for {video_id}. Check video ID and network.", file=sys.stderr)
         sys.exit(3)
 
     transcript_obj = None
@@ -133,16 +165,25 @@ def fetch_transcript(video_id: str, languages: list = None, http_proxy: str = No
 
 def save_transcript(data: dict, output_dir: str = ".") -> str:
     """Save transcript dict to JSON file. Creates output_dir if missing."""
-    os.makedirs(output_dir, exist_ok=True)
-    video_id = data["video_id"]
-    output_path = os.path.join(output_dir, f"transcript_{video_id}.json")
+    video_id = data.get("video_id", "")
+    if not _VIDEO_ID_RE.match(video_id):
+        raise ValueError(f"Invalid video ID: {video_id!r}")
+
+    abs_dir = os.path.abspath(output_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    output_path = os.path.join(abs_dir, f"transcript_{video_id}.json")
+    abs_output = os.path.abspath(output_path)
+    if not abs_output.startswith(abs_dir + os.sep):
+        raise ValueError("Output path escapes output_dir")
+
     try:
-        with open(output_path, "w", encoding="utf-8") as f:
+        with open(abs_output, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        print(f"Error writing {output_path}: {e}", file=sys.stderr)
+    except OSError:
+        print("Error: Could not write transcript file. Check permissions and disk space.", file=sys.stderr)
         sys.exit(1)
-    return output_path
+    return abs_output
 
 
 def main():

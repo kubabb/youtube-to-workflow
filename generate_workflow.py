@@ -5,9 +5,12 @@ Usage: python generate_workflow.py <extracted_VIDEO_ID.json> [transcript_VIDEO_I
 """
 
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
+
+_VIDEO_ID_RE = re.compile(r'^[A-Za-z0-9_-]{11}$')
 
 from templates.workflow_template import (
     WORKFLOW_TEMPLATE,
@@ -55,8 +58,10 @@ def main_render(extracted_path: str, meta_path: str | None = None) -> str:
 
     # Infer transcript meta path if not provided
     if meta_path is None:
-        video_id = ep.stem.replace("extracted_", "")
-        inferred = ep.parent / f"transcript_{video_id}.json"
+        raw_id = ep.stem.replace("extracted_", "")
+        if not _VIDEO_ID_RE.match(raw_id):
+            raise ValueError(f"Invalid video ID in filename: {raw_id!r}")
+        inferred = ep.parent / f"transcript_{raw_id}.json"
         meta_path = str(inferred) if inferred.exists() else None
 
     transcript_meta: dict = {}
@@ -66,13 +71,15 @@ def main_render(extracted_path: str, meta_path: str | None = None) -> str:
 
     content = render_workflow(data, transcript_meta)
 
-    video_id = transcript_meta.get("video_id", ep.stem.replace("extracted_", ""))
+    video_id = transcript_meta.get("video_id") or ep.stem.replace("extracted_", "")
+    if not _VIDEO_ID_RE.match(video_id):
+        raise ValueError(f"Invalid video ID: {video_id!r}")
     out_path = ep.parent / f"workflow_{video_id}.md"
 
     try:
         out_path.write_text(content, encoding="utf-8")
-    except OSError as e:
-        print(f"Error writing {out_path}: {e}", file=sys.stderr)
+    except OSError:
+        print("Error: Could not write workflow file. Check permissions and disk space.", file=sys.stderr)
         sys.exit(1)
 
     return str(out_path)
